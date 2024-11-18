@@ -1,0 +1,7 @@
+requests
+schedule
+loguru
+aiofiles
+fastapi[all]
+uvicorn
+pyttsreverso
