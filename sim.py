@@ -1,6 +1,7 @@
 import time
 import serial
 import subprocess
+from led import LED
 import RPi.GPIO as GPIO
 from loguru import logger
 from pydantic import BaseModel
@@ -13,6 +14,8 @@ class Sim():
         self.baud_rate = 9600
         self.timeout = 1
         self.serial = serial.Serial(self.serial_port,baudrate=self.baud_rate,timeout=self.timeout)
+        self.led = LED()
+        self.relay_pin = 4
         
         
     def send_at_command(self, command, delay=1):
@@ -20,20 +23,47 @@ class Sim():
             """ Helper function to send AT commands and read response """
             response = self.serial.write((command + '\r').encode())  # Ensure command is encoded to bytes
             time.sleep(delay)
-            logger.info(response)
             response = self.serial.read_all().decode()
             return response
         except Exception as e:
             logger.error(str(e))
             
+    def is_sim_available(self):
+        try:
+            
+            self.serial.write(b'AT\r')
+            time.sleep(0.5)
+            response = self.serial.read_all().decode().strip()
+            if "OK" in response:
+                logger.info("The SIM is ready")
+                self.led.sim_ready()
+                return True
+            else:
+                self.led.sim_not_ready()
+                return False
+        except Exception as e:
+            print(f"Error checking SIM module: {e}")
+            return False
 
+
+    def power_on_sim(self, delay=3):
+        GPIO.setmode(GPIO.BCM)
+        GPIO.setwarnings(False)
+        GPIO.setup(self.relay_pin, GPIO.OUT)  # Set the relay pin as an output  
+        GPIO.output(self.relay_pin, GPIO.HIGH)  # Activate the relay (low-level trigger)
+        time.sleep(2)                      # Hold for 1 second (adjust if needed)
+        GPIO.output(self.relay_pin, GPIO.LOW)   # Deactivate the relay
+        print("Button press simulated!")
+        GPIO.setup(self.relay_pin, GPIO.IN)
+        while not self.is_sim_available():
+            time.sleep(delay)
+        
     def utf8_to_ucs2(self, text):
         """ Convert UTF-8 string to UCS2 encoding for SMS """
         ucs2_encoded = ""
         for char in text:
             ucs2_encoded += f"{ord(char):04X}"
         return ucs2_encoded        
-
 
     def get_signal_quality(self):
         # Check signal quality
@@ -63,9 +93,11 @@ class Sim():
     
     def send_sms(self, phone_number, message, delay=2):
         try:
-            # Prepare to send SMS
             
-            self.get_signal_quality()
+            # Prepare to send SMS
+            if not self.is_sim_available():
+                self.power_on_sim()
+            self.led.operation_active()   
             self.set_sms_text_mode()
             self.set_ucs2_mode()
             self.set_sms_parameters()
@@ -76,6 +108,7 @@ class Sim():
             message = self.utf8_to_ucs2(message)
             
             response = self.send_at_command(f'AT+CMGS="{phone_number}"')
+            
             logger.info("Sending SMS Command Response:", response)
 
             # Check for the prompt character ">" before sending the message
@@ -92,8 +125,9 @@ class Sim():
             logger.info("Final Response after sending SMS:", final_response)
             return True
         except Exception as e:
-            logger.error("Error sendin")
-
+            logger.error(f"Error sending SMS: {str(e)}")
+        finally:
+            self.led.operation_idle()
 
 
     def attempt_hangup(self):
@@ -129,49 +163,56 @@ class Sim():
         
     def call_and_play(self, phone_number, audio_file_path):
         """ Function to make a call, wait for answer, play an audio file, and hang up """
-        response = self.send_at_command(f'ATD{phone_number};')  # "ATD" command with ";" to initiate a voice call
-        logger.info("Dialing number:", response)
-        
-        # Check if call was initiated successfully
-        if "OK" in response:
-            logger.info("Call initiated successfully, waiting for answer...")
-        else:
-            logger.error("Failed to initiate call")
-            return False
-        
-        connected=False
-        
-        for _ in range(10):
-            logger.info("Dailing...")
-            logger.info(f"Serial in waiting: {self.serial.in_waiting}")
-            print(self.serial.read_all().decode())
-            try:
-                if "1,0,0,0,0" in self.send_at_command("AT+CLCC",1):
-                    logger.info("The call has been answered")
-                    connected=True
-                    break
-            except:
-                pass
-        
-        connected=True    
+        try:
+            if not self.is_sim_available():
+                self.power_on_sim()
+            self.led.operation_active()
+            response = self.send_at_command(f'ATD{phone_number};')  # "ATD" command with ";" to initiate a voice call
+            logger.info("Dialing number:", response)
+            
+            # Check if call was initiated successfully
+            if "OK" in response:
+                logger.info("Call initiated successfully, waiting for answer...")
+            else:
+                logger.error("Failed to initiate call")
+                return False
+            
+            connected=False
+            
+            for _ in range(10):
+                logger.info("Dailing...")
+                logger.info(f"Serial in waiting: {self.serial.in_waiting}")
+                print(self.serial.read_all().decode())
+                try:
+                    if "1,0,0,0,0" in self.send_at_command("AT+CLCC",1):
+                        logger.info("The call has been answered")
+                        connected=True
+                        break
+                except:
+                    pass
+            
+            connected=True    
 
-        if not connected:
-            logger.debug("No answer, hanging up.")
-            self.attempt_hangup()
-            return False
+            if not connected:
+                logger.debug("No answer, hanging up.")
+                self.attempt_hangup()
+                return False
 
-        # Wait 2 seconds before starting playback
-        time.sleep(1)
+            # Wait 2 seconds before starting playback
+            time.sleep(1)
 
-        # Play the audio file using a system command (e.g., ffplay or mpg321)
-        logger.info("Playing audio file...")
-        subprocess.call(["ffplay", "-nodisp", "-autoexit", audio_file_path])
+            # Play the audio file using a system command (e.g., ffplay or mpg321)
+            logger.info("Playing audio file...")
+            subprocess.call(["ffplay", "-nodisp", "-autoexit", audio_file_path])
 
-        # Wait 2 more seconds after playback
-        time.sleep(2)
-        
-        # Hang up the call
-        logger.info("Hanging up the call.")
-        return self.attempt_hangup()
-        
+            # Wait 2 more seconds after playback
+            time.sleep(2)
+            
+            # Hang up the call
+            logger.info("Hanging up the call.")
+            return self.attempt_hangup()
+        except Exception as e:
+            logger.error(e)
+        finally:
+            self.led.operation_idle()    
     

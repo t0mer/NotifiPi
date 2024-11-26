@@ -1,4 +1,7 @@
+import time
 import uuid
+import RPi.GPIO as GPIO
+from sim import Sim
 from loguru import logger
 from pyttsreverso import pyttsreverso
 
@@ -6,6 +9,8 @@ from pyttsreverso import pyttsreverso
 class Utils():
     def __init__(self):
         self.convert = pyttsreverso.ReversoTTS()
+        self.sim = Sim()
+        self.relay_pin = 4
     
     def tts(self,voice_name,message):
         try:
@@ -19,4 +24,5 @@ class Utils():
             logger.error(f"Error creating audio file: {str(e)}")
             raise Exception(f"Error creating audio file: {str(e)}")
         
-        
+
+
