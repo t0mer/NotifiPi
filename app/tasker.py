@@ -9,7 +9,7 @@ class Tasker():
         
     
     def run(self):
-        schedule.every(1).minutes.do(self.sim.is_sim_available)
+        schedule.every(1).minutes.do(self.sim.ensure_sim_ready)
         while True:
             schedule.run_pending()
             time.sleep(1)

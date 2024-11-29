@@ -1,15 +1,23 @@
 import time
 from sim import Sim
 from led import LED
+import RPi.GPIO as GPIO
+from pathlib import Path
 from loguru import logger
 from server import Server
 from tasker import Tasker
 from multiprocessing.dummy import Process
 
+GPIO.setmode(GPIO.BCM)
+GPIO.setwarnings(False)
+
 server = Server()
 sim = Sim()
 tasker = Tasker()
 led = LED()
+
+audio_dir = Path.cwd() / "audio/"
+audio_dir.mkdir(parents=True, exist_ok=True)
 
 if __name__=="__main__":
     try:

@@ -16,6 +16,7 @@ class Sim():
         self.serial = serial.Serial(self.serial_port,baudrate=self.baud_rate,timeout=self.timeout)
         self.led = LED()
         self.relay_pin = 4
+
         
         
     def send_at_command(self, command, delay=1):
@@ -27,7 +28,7 @@ class Sim():
             return response
         except Exception as e:
             logger.error(str(e))
-            
+
     def is_sim_available(self):
         try:
             
@@ -42,21 +43,42 @@ class Sim():
                 self.led.sim_not_ready()
                 return False
         except Exception as e:
-            print(f"Error checking SIM module: {e}")
+            logger.error(f"Error checking SIM module: {e}")
             return False
 
-
-    def power_on_sim(self, delay=3):
-        GPIO.setmode(GPIO.BCM)
-        GPIO.setwarnings(False)
+    def power_on_sim(self, delay=1):
+        
         GPIO.setup(self.relay_pin, GPIO.OUT)  # Set the relay pin as an output  
         GPIO.output(self.relay_pin, GPIO.HIGH)  # Activate the relay (low-level trigger)
         time.sleep(2)                      # Hold for 1 second (adjust if needed)
         GPIO.output(self.relay_pin, GPIO.LOW)   # Deactivate the relay
-        print("Button press simulated!")
         GPIO.setup(self.relay_pin, GPIO.IN)
         while not self.is_sim_available():
             time.sleep(delay)
+
+    def ensure_sim_ready(self, delay=2, max_attempts=2):
+        """
+        Ensure the SIM module is ready.
+        
+        1. Check if the SIM is available.
+        2. If not, power it on and wait for it to be available.
+        3. If the SIM becomes available, return True; otherwise, return False.
+        """
+        attempts = 0
+        while attempts < max_attempts:
+            if self.is_sim_available():
+                return True  # SIM is ready
+            
+            logger.warning(f"SIM not available. Attempting to power on (Attempt {attempts + 1}/{max_attempts})...")
+            self.power_on_sim(delay=delay)
+            
+            # Wait briefly before re-checking
+            time.sleep(delay)
+            attempts += 1
+
+        # If all attempts fail, log an error and return False
+        logger.error("Failed to ensure SIM readiness after maximum attempts.")
+        return False
         
     def utf8_to_ucs2(self, text):
         """ Convert UTF-8 string to UCS2 encoding for SMS """
@@ -88,15 +110,12 @@ class Sim():
         response = self.send_at_command("AT+CSMP=17,167,0,8")
         logger.info(response)
         return response
-    
-    
-    
+   
     def send_sms(self, phone_number, message, delay=2):
         try:
             
             # Prepare to send SMS
-            if not self.is_sim_available():
-                self.power_on_sim()
+            self.ensure_sim_ready()
             self.led.operation_active()   
             self.set_sms_text_mode()
             self.set_ucs2_mode()
@@ -129,7 +148,6 @@ class Sim():
         finally:
             self.led.operation_idle()
 
-
     def attempt_hangup(self):
         """ Attempts to hang up the call using multiple retries if needed """
         max_attempts = 5
@@ -151,7 +169,7 @@ class Sim():
             logger.error("ATH command failed or call not ended, retrying...")
 
         # If ATH didn't work, try AT+CHUP as a last resort
-        print("Attempting AT+CHUP as final hangup command.")
+        logger.info("Attempting AT+CHUP as final hangup command.")
         response = self.send_at_command("AT+CHUP", delay=1)
         if "NO CARRIER" in response or "OK" in response:
             logger.info("Call ended with AT+CHUP.")
@@ -160,12 +178,10 @@ class Sim():
             logger.error("Failed to end the call with AT+CHUP as well. Manual intervention may be needed.")
             return False
         
-        
     def call_and_play(self, phone_number, audio_file_path):
         """ Function to make a call, wait for answer, play an audio file, and hang up """
         try:
-            if not self.is_sim_available():
-                self.power_on_sim()
+            self.ensure_sim_ready()
             self.led.operation_active()
             response = self.send_at_command(f'ATD{phone_number};')  # "ATD" command with ";" to initiate a voice call
             logger.info("Dialing number:", response)
@@ -182,7 +198,7 @@ class Sim():
             for _ in range(10):
                 logger.info("Dailing...")
                 logger.info(f"Serial in waiting: {self.serial.in_waiting}")
-                print(self.serial.read_all().decode())
+                logger.info(self.serial.read_all().decode())
                 try:
                     if "1,0,0,0,0" in self.send_at_command("AT+CLCC",1):
                         logger.info("The call has been answered")

@@ -1,7 +1,6 @@
 import RPi.GPIO as GPIO
 import time
-GPIO.setmode(GPIO.BCM)
-GPIO.setwarnings(False)
+
 
 class LED():
     def __init__(self):
@@ -48,7 +47,7 @@ class LED():
         self.set_led_color(self.sim_status_led, '..')  # Turn SIM led off
         
     def operation_idle(self):
-        self.set_led_color(self.operation_status_led, 'G')  # Green when idle
+        self.set_led_color(self.operation_status_led, '..')  # Green when idle
 
     def operation_active(self):
         self.set_led_color(self.operation_status_led, 'B')  # Blue when sending SMS or making a call
