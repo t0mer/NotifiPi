@@ -1,0 +1,219 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Status Page</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-color: #f7f9fc;
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+        }
+        
+        .container {
+            max-width: 600px;
+            width: 100%;
+            padding: 20px;
+        }
+        
+        .card {
+            background-color: #ffffff;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.15);
+            border-radius: 12px;
+            padding: 20px;
+        }
+        
+        .card h2 {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-top: 0;
+            margin-bottom: 20px;
+            color: #444;
+        }
+        
+        .status-item {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            margin-bottom: 15px;
+            padding: 10px;
+            border-radius: 8px;
+            background-color: #f7f9fc;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .status-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .status-item .icon {
+            font-size: 20px;
+            color: #4caf50;
+        }
+        
+        .status-item .icon.error {
+            color: #f44336;
+        }
+        
+        .status-label {
+            font-weight: bold;
+            color: #555;
+        }
+        
+        .status-value {
+            color: #333;
+        }
+        
+        .network-section {
+            margin-top: 20px;
+            padding-top: 10px;
+            border-top: 1px solid #e0e0e0;
+        }
+        
+        .network-item {
+            margin-bottom: 10px;
+            padding: 8px;
+            border-radius: 6px;
+            background-color: #ffffff;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        
+        .network-item:last-child {
+            margin-bottom: 0;
+        }
+        
+        .network-item .icon {
+            font-size: 18px;
+            color: #2196f3;
+        }
+        
+    </style>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"></script>
+</head>
+<body>
+    <div class="container">
+        <div class="card">
+            <h2><i class="fas fa-server"></i> System Status</h2>
+            <div id="status-content">
+                <!-- Content will be injected via JavaScript -->
+            </div>
+        </div>
+    </div>
+    <script>
+
+        function renderStatus(data) {
+            const contentDiv = document.getElementById("status-content");
+            contentDiv.innerHTML = ""; // Clear content before adding new data
+        
+            // CPU Section
+            contentDiv.innerHTML += `
+                <div class="status-item">
+                    <i class="icon fas fa-microchip"></i>
+                    <div>
+                        <div class="status-label">CPU Usage:</div>
+                        <div class="status-value">${data.cpu.usage}%</div>
+                    </div>
+                </div>
+                <div class="status-item">
+                    <i class="icon fas fa-thermometer-half"></i>
+                    <div>
+                        <div class="status-label">CPU Temperature:</div>
+                        <div class="status-value">${data.cpu.temp}°C</div>
+                    </div>
+                </div>
+            `;
+        
+            // Disk Section
+            contentDiv.innerHTML += `
+                <div class="status-item">
+                    <i class="icon fas fa-hdd"></i>
+                    <div>
+                        <div class="status-label">Disk Usage:</div>
+                        <div class="status-value">
+                            Total: ${data.disk.total}, Used: ${data.disk.used}, Free: ${data.disk.free}
+                        </div>
+                    </div>
+                </div>
+            `;
+        
+            // RAM Section
+            contentDiv.innerHTML += `
+                <div class="status-item">
+                    <i class="icon fas fa-memory"></i>
+                    <div>
+                        <div class="status-label">RAM Usage:</div>
+                        <div class="status-value">
+                            Total: ${data.ram.total}, Used: ${data.ram.used}, Free: ${data.ram.free}
+                        </div>
+                    </div>
+                </div>
+            `;
+        
+            // Uptime Section
+            contentDiv.innerHTML += `
+                <div class="status-item">
+                    <i class="icon fas fa-clock"></i>
+                    <div>
+                        <div class="status-label">Uptime:</div>
+                        <div class="status-value">${data.uptime}</div>
+                    </div>
+                </div>
+            `;
+        
+            // Network Section
+            contentDiv.innerHTML += `
+                <div class="network-section">
+                    <div class="status-label">Network Interfaces:</div>
+                    ${Object.entries(data.network).map(([key, value]) => `
+                        <div class="network-item">
+                            <i class="icon fas fa-network-wired"></i>
+                            <div>
+                                <div class="status-label">${key}:</div>
+                                <div class="status-value">
+                                    ${value.connected ? "Connected" : "Disconnected"}, Speed: ${value.speed_mbps} Mbps, IP: ${value.ip_address}
+                                </div>
+                            </div>
+                        </div>
+                    `).join('')}
+                </div>
+            `;
+        }
+        
+        function fetchStatus() {
+            $.ajax({
+                url: "/api/metrics",
+                method: "GET",
+                dataType: "json",
+                success: function (data) {
+                    renderStatus(data);
+                },
+                error: function () {
+                    const contentDiv = document.getElementById("status-content");
+                    contentDiv.innerHTML = `
+                        <div class="status-item">
+                            <i class="icon error fas fa-exclamation-triangle"></i>
+                            <div>
+                                <div class="status-label">Error:</div>
+                                <div class="status-value">Unable to fetch data from the server.</div>
+                            </div>
+                        </div>
+                    `;
+                },
+            });
+        }
+        
+        // Fetch data on page load
+        fetchStatus();
+        
+
+    </script>
+</body>
+</html>

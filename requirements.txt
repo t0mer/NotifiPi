@@ -5,3 +5,4 @@ aiofiles
 fastapi[all]
 uvicorn
 pyttsreverso
+psutil

@@ -145,6 +145,7 @@ class Sim():
             return True
         except Exception as e:
             logger.error(f"Error sending SMS: {str(e)}")
+            raise e
         finally:
             self.led.operation_idle()
 
@@ -228,7 +229,8 @@ class Sim():
             logger.info("Hanging up the call.")
             return self.attempt_hangup()
         except Exception as e:
-            logger.error(e)
+            logger.error(str(e))
+            raise e
         finally:
             self.led.operation_idle()    
     

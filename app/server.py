@@ -1,5 +1,6 @@
 import time
 import uvicorn
+import asyncio
 from sim import Sim
 from led import LED
 from tasker import Tasker
@@ -9,6 +10,7 @@ from pydantic import BaseModel
 from fastapi.responses import JSONResponse
 from fastapi.encoders import jsonable_encoder
 from fastapi.templating import Jinja2Templates
+from concurrent.futures import ThreadPoolExecutor
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException, Request
 
@@ -33,6 +35,7 @@ class Server():
         self.tasker = Tasker()
         self.templates = Jinja2Templates(directory="templates/")
         self.origins = ["*"]
+        self.executor = ThreadPoolExecutor()
 
         self.app.add_middleware(
             CORSMiddleware,
@@ -62,7 +65,8 @@ class Server():
         async def tts_endpoint(request: TTSRequest):
             try:
                 audio_file_path = self.utils.tts(request.message, request.voice_name)
-                self.sim.call_and_play(request.phone_number, audio_file_path)
+                await asyncio.get_event_loop().run_in_executor(self.executor, self.sim.call_and_play, request.phone_number, audio_file_path)
+                # self.sim.call_and_play(request.phone_number, audio_file_path)
                 return {"message": ""}
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
@@ -87,17 +91,26 @@ class Server():
         @self.app.post("/api/sms/")
         async def text_endpoint(request: SMSRequest):
             try:
-                self.sim.send_sms(request.phone_number,request.message)
+                # self.sim.send_sms(request.phone_number,request.message)
+                await asyncio.get_event_loop().run_in_executor(self.executor, self.sim.send_sms, request.phone_number, request.message)
                 return {"message": ""}
             except Exception as e:
                 raise HTTPException(status_code=500, detail=str(e))
 
         @self.app.get("/")
-        def home(request: Request):
+        async def home(request: Request):
             """
             Homepage
             """
             return self.templates.TemplateResponse('index.html', context={'request': request })
+
+
+        @self.app.get("/status")
+        async def home(request: Request):
+            """
+            Homepage
+            """
+            return self.templates.TemplateResponse('status.html', context={'request': request })
 
     def run(self):
         self.led.service_running()
