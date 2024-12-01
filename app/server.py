@@ -28,7 +28,7 @@ class TTSRequest(BaseModel):
 
 class Server():
     def __init__(self):
-        self.app = FastAPI(title="NotifiPi", description="Raspberry pi based notification service for text messages and calls", version='1.0.0', contact={"name": "Tomer Klein", "email": "tomer.klein@gmail.com", "url": "https://github.com/t0mer/wmd-servers-scrapper"})
+        self.app = FastAPI(title="NotifiPi", description="Raspberry pi based notification service for text messages and calls", version='1.0.0', contact={"name": "Tomer Klein", "email": "tomer.klein@gmail.com", "url": "https://github.com/t0mer/NotifiPi"})
         self.sim = Sim()
         self.utils = Utils()
         self.led = LED()
